@@ -17,6 +17,25 @@ pub enum Error {
 
     #[snafu(display("Could not deserialize JSON from ingester file: {source}"))]
     SequencerToIngesterDeserializing { source: serde_json::Error },
+
+    #[snafu(display(
+        "Specifying `\"ignoreAll\": true` requires that both the `ingesters` and \
+        `sequencers` configurations are empty. `ingesters`: `{:#?}`,  `sequencers`: `{:#?}`",
+        ingesters,
+        sequencers,
+    ))]
+    IgnoreAllRequiresEmptyConfig {
+        ingesters: HashMap<Arc<str>, Arc<IngesterConfig>>,
+        sequencers: HashMap<i32, SequencerConfig>,
+    },
+
+    #[snafu(display(
+        "Ingester `{name}` must either set the `addr` to a non-empty value or set `ignore` to true"
+    ))]
+    IngesterAddrRequired { name: Arc<str> },
+
+    #[snafu(display("Could not find ingester `{name}` specified for sequencer `{sequencer}`"))]
+    IngesterNotFound { sequencer: i32, name: Arc<str> },
 }
 
 /// CLI config for querier configuration
@@ -58,14 +77,61 @@ pub struct QuerierConfig {
     ///
     /// ```json
     /// {
-    ///   "sequencers": {
-    ///     "0": {
-    ///       "ingesters": [
-    ///         {"addr": "http://ingester-0:8082"},
-    ///         {"addr": "http://ingester-3:8082"}
-    ///       ]
+    ///   // Flag to ignore all ingesters and only query persisted data. Useful for development
+    ///   // or creating "cold data only" clusters.
+    ///   //
+    ///   // If this is set to `true`, having non-empty `ingesters` or `sequencers` is a startup
+    ///   // error.
+    ///   //
+    ///   // default: false
+    ///   "ignoreAll": false,
+    ///
+    ///   // Mapping of ingester name to config.
+    ///   //
+    ///   // default: {}
+    ///   "ingesters": {
+    ///     "i1": {
+    ///       // Ingester address as URL.
+    ///       //
+    ///       // If this is `null` but `ignore` is false, it is an error.
+    ///       //
+    ///       // default: null
+    ///       "addr": "http://ingester-1:1234"
     ///     },
-    ///     "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]}
+    ///     "i2": {
+    ///       // Flag to ignore this ingester at query time and not contact it.
+    ///       //
+    ///       // default: false
+    ///       "ignore": true
+    ///     }
+    ///   },
+    ///
+    ///   // Mapping of sequencer IDs (as strings) to ingester names. Queries to sequencers that do
+    ///   // not appear in this mapping will return an error. Using an ingester name in the
+    ///   `sequencers` mapping that does not appear in the `ingesters` mapping is a startup error.
+    ///   //
+    ///   // default: {}
+    ///   "sequencers": {
+    ///     "1": {
+    ///       // Name of an ingester from the `ingester` mapping.
+    ///       //
+    ///       // If this is `null`, queries to this sequencer will error.
+    ///       //
+    ///       // default: null
+    ///       "ingester": "i1"
+    ///     },
+    ///     "2": {
+    ///       "ingester": "i1"
+    ///     },
+    ///     "3": {
+    ///       "ingester": "i2"
+    ///     },
+    ///     "5": {
+    ///       // Flag to not fetch data from any ingester for queries to this sequencer.
+    ///       //
+    ///       // default: false
+    ///       "ignore": true
+    ///     }
     ///   }
     /// }
     /// ```
@@ -80,14 +146,61 @@ pub struct QuerierConfig {
     ///
     /// ```json
     /// {
-    ///   "sequencers": {
-    ///     "0": {
-    ///       "ingesters": [
-    ///         {"addr": "http://ingester-0:8082"},
-    ///         {"addr": "http://ingester-3:8082"}
-    ///       ]
+    ///   // Flag to ignore all ingesters and only query persisted data. Useful for development
+    ///   // or creating "cold data only" clusters.
+    ///   //
+    ///   // If this is set to `true`, having non-empty `ingesters` or `sequencers` is a startup
+    ///   // error.
+    ///   //
+    ///   // default: false
+    ///   "ignoreAll": false,
+    ///
+    ///   // Mapping of ingester name to config.
+    ///   //
+    ///   // default: {}
+    ///   "ingesters": {
+    ///     "i1": {
+    ///       // Ingester address as URL.
+    ///       //
+    ///       // If this is `null` but `ignore` is false, it is an error.
+    ///       //
+    ///       // default: null
+    ///       "addr": "http://ingester-1:1234"
     ///     },
-    ///     "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]}
+    ///     "i2": {
+    ///       // Flag to ignore this ingester at query time and not contact it.
+    ///       //
+    ///       // default: false
+    ///       "ignore": true
+    ///     }
+    ///   },
+    ///
+    ///   // Mapping of sequencer IDs (as strings) to ingester names. Queries to sequencers that do
+    ///   // not appear in this mapping will return an error. Using an ingester name in the
+    ///   `sequencers` mapping that does not appear in the `ingesters` mapping is a startup error.
+    ///   //
+    ///   // default: {}
+    ///   "sequencers": {
+    ///     "1": {
+    ///       // Name of an ingester from the `ingester` mapping.
+    ///       //
+    ///       // If this is `null`, queries to this sequencer will error.
+    ///       //
+    ///       // default: null
+    ///       "ingester": "i1"
+    ///     },
+    ///     "2": {
+    ///       "ingester": "i1"
+    ///     },
+    ///     "3": {
+    ///       "ingester": "i2"
+    ///     },
+    ///     "5": {
+    ///       // Flag to not fetch data from any ingester for queries to this sequencer.
+    ///       //
+    ///       // default: false
+    ///       "ignore": true
+    ///     }
     ///   }
     /// }
     /// ```
@@ -127,8 +240,8 @@ impl QuerierConfig {
     /// Return the querier config's ingester addresses. If `--ingester-address` is used to specify
     /// a list of addresses, this returns `Err` if any of the addresses are repeated. If
     /// `--sequencer-to-ingesters-file` is used to specify a JSON file containing sequencer to
-    /// ingester address mappings, this returns `Err` if there are any problems reading or
-    /// deserializing the file.
+    /// ingester address mappings, this returns `Err` if there are any problems reading,
+    /// deserializing, or interpreting the file.
     pub fn ingester_addresses(&self) -> Result<IngesterAddresses, Error> {
         if let Some(file) = &self.sequencer_to_ingesters_file {
             let contents =
@@ -167,48 +280,101 @@ impl QuerierConfig {
     }
 }
 
-fn deserialize_sequencer_ingester_map(
-    contents: &str,
-) -> Result<HashMap<i32, Vec<Arc<str>>>, Error> {
+fn deserialize_sequencer_ingester_map(contents: &str) -> Result<HashMap<i32, Ingester>, Error> {
     let ingesters_config: IngestersConfig =
         serde_json::from_str(contents).context(SequencerToIngesterDeserializingSnafu)?;
 
-    Ok(ingesters_config
-        .sequencers
-        .into_iter()
-        .map(|(seq_id, ingesters)| {
-            (
-                seq_id,
-                ingesters
-                    .ingesters
-                    .into_iter()
-                    .map(|ingester| ingester.addr)
-                    .collect(),
-            )
-        })
-        .collect())
+    if ingesters_config.ignore_all
+        && (!ingesters_config.ingesters.is_empty() || !ingesters_config.sequencers.is_empty())
+    {
+        return IgnoreAllRequiresEmptyConfigSnafu {
+            ingesters: ingesters_config.ingesters,
+            sequencers: ingesters_config.sequencers,
+        }
+        .fail();
+    }
+
+    for (name, config) in &ingesters_config.ingesters {
+        if !config.ignore
+            && (config.addr.is_none() || config.addr.as_ref().expect("Must be Some").is_empty())
+        {
+            return IngesterAddrRequiredSnafu {
+                name: Arc::clone(name),
+            }
+            .fail();
+        }
+    }
+
+    let mut map = HashMap::new();
+
+    for (seq_id, seq_config) in ingesters_config.sequencers {
+        if seq_config.ignore {
+            map.insert(seq_id, Ingester::Ignore);
+            continue;
+        }
+        match seq_config.ingester {
+            Some(ingester) => match ingesters_config.ingesters.get(&ingester) {
+                Some(ingester_config) => match &ingester_config.addr {
+                    Some(addr) => {
+                        map.insert(seq_id, Ingester::Addr(Arc::clone(&addr)));
+                    }
+                    None => {
+                        map.insert(seq_id, Ingester::Ignore);
+                    }
+                },
+                None => {
+                    return IngesterNotFoundSnafu {
+                        name: Arc::clone(&ingester),
+                        sequencer: seq_id,
+                    }
+                    .fail();
+                }
+            },
+            None => {
+                map.insert(seq_id, Ingester::Ignore);
+            }
+        }
+    }
+
+    Ok(map)
 }
 
 /// Either specify a list of ingester addresses or a mapping from sequencer ID to ingesters
 #[derive(Debug, PartialEq)]
 pub enum IngesterAddresses {
     List(Vec<String>),
-    BySequencer(HashMap<i32, Vec<Arc<str>>>),
+    BySequencer(HashMap<i32, Ingester>),
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, PartialEq, Clone)]
+pub enum Ingester {
+    Addr(Arc<str>),
+    Ignore,
+}
+
+#[derive(Debug, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
 struct IngestersConfig {
-    sequencers: HashMap<i32, Ingesters>,
+    #[serde(default)]
+    ignore_all: bool,
+    #[serde(default)]
+    ingesters: HashMap<Arc<str>, Arc<IngesterConfig>>,
+    #[serde(default)]
+    sequencers: HashMap<i32, SequencerConfig>,
 }
 
 #[derive(Debug, Deserialize)]
-struct Ingesters {
-    ingesters: Vec<Ingester>,
+pub struct IngesterConfig {
+    addr: Option<Arc<str>>,
+    #[serde(default)]
+    ignore: bool,
 }
 
 #[derive(Debug, Deserialize)]
-struct Ingester {
-    addr: Arc<str>,
+pub struct SequencerConfig {
+    ingester: Option<Arc<str>>,
+    #[serde(default)]
+    ignore: bool,
 }
 
 #[cfg(test)]
@@ -297,14 +463,25 @@ mod tests {
             "my_binary",
             "--sequencer-to-ingesters",
             r#"{
-              "sequencers": {
-                "0": {
-                  "ingesters": [
-                    {"addr": "http://ingester-1:8082"},
-                    {"addr": "http://ingester-3:8082"}
-                  ]
+              "ignoreAll": false,
+              "ingesters": {
+                "i1": {
+                  "addr": "http://ingester-1:1234"
                 },
-                "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]}
+                "i2": {
+                  "ignore": true
+                }
+              },
+              "sequencers": {
+                "1": {
+                  "ingester": "i1"
+                },
+                "2": {
+                  "ingester": "i2"
+                },
+                "5": {
+                  "ignore": true
+                }
               }
             }"#,
         ])
@@ -312,11 +489,11 @@ mod tests {
 
         let expected = IngesterAddresses::BySequencer(
             [
-                (0, vec!["http://ingester-1:8082", "http://ingester-3:8082"]),
-                (1, vec!["http://ingester-1:8082"]),
+                (1, Ingester::Addr("http://ingester-1:1234".into())),
+                (2, Ingester::Ignore),
+                (5, Ingester::Ignore),
             ]
             .into_iter()
-            .map(|(seq_id, addrs)| (seq_id, addrs.into_iter().map(Arc::from).collect()))
             .collect(),
         );
 
@@ -326,24 +503,41 @@ mod tests {
     #[test]
     fn successful_deserialization() {
         let contents = r#"{
-          "sequencers": {
-            "0": {
-              "ingesters": [
-                {"addr": "http://ingester-1:8082"},
-                {"addr": "http://ingester-3:8082"}
-              ]
+          "ignoreAll": false,
+          "ingesters": {
+            "i1": {
+              "addr": "http://ingester-1:1234"
             },
-            "1": { "ingesters": [{"addr": "http://ingester-1:8082"}]}
+            "i2": {
+              "ignore": true
+            }
+          },
+          "sequencers": {
+            "1": {
+              "ingester": "i1"
+            },
+            "2": {
+              "ingester": "i2"
+            },
+            "3": {
+              "ingester": "i1",
+              "ignore": true
+            },
+            "5": {
+              "ignore": true
+            }
           }
         }"#;
+
         let map = deserialize_sequencer_ingester_map(contents).unwrap();
 
         let expected = [
-            (0, vec!["http://ingester-1:8082", "http://ingester-3:8082"]),
-            (1, vec!["http://ingester-1:8082"]),
+            (1, Ingester::Addr("http://ingester-1:1234".into())),
+            (2, Ingester::Ignore),
+            (3, Ingester::Ignore),
+            (5, Ingester::Ignore),
         ]
         .into_iter()
-        .map(|(seq_id, addrs)| (seq_id, addrs.into_iter().map(Arc::from).collect()))
         .collect();
 
         assert_eq!(map, expected);
@@ -353,5 +547,111 @@ mod tests {
     fn unsuccessful_deserialization() {
         let map = deserialize_sequencer_ingester_map("");
         assert_error!(map, Error::SequencerToIngesterDeserializing { .. });
+    }
+
+    #[test]
+    fn ignore_all_requires_empty_maps() {
+        let expected = HashMap::new();
+
+        let map = deserialize_sequencer_ingester_map(
+            r#"{
+            "ignoreAll": true
+        }"#,
+        );
+        assert_eq!(map.unwrap(), expected);
+
+        let map = deserialize_sequencer_ingester_map(
+            r#"{
+            "ignoreAll": true,
+            "ingesters": {},
+            "sequencers": {}
+        }"#,
+        );
+        assert_eq!(map.unwrap(), expected);
+
+        let map = deserialize_sequencer_ingester_map(
+            r#"{
+            "ignoreAll": true,
+            "ingesters": {
+                "i1": {
+                  "addr": "http://ingester-1:1234"
+                }
+            },
+            "sequencers": {}
+        }"#,
+        );
+        assert_error!(map, Error::IgnoreAllRequiresEmptyConfig { .. });
+
+        let map = deserialize_sequencer_ingester_map(
+            r#"{
+            "ignoreAll": true,
+            "ingesters": {},
+            "sequencers": {
+                "1": {
+                  "ingester": "i1"
+                }
+            }
+        }"#,
+        );
+        assert_error!(map, Error::IgnoreAllRequiresEmptyConfig { .. });
+
+        let map = deserialize_sequencer_ingester_map(
+            r#"{
+            "ignoreAll": true,
+            "ingesters": {
+                "i1": {
+                  "addr": "http://ingester-1:1234"
+                }
+            },
+            "sequencers": {
+                "1": {
+                  "ingester": "i1"
+                }
+            }
+        }"#,
+        );
+        assert_error!(map, Error::IgnoreAllRequiresEmptyConfig { .. });
+    }
+
+    #[test]
+    fn ingester_addr_must_be_specified_if_not_ignored() {
+        let map = deserialize_sequencer_ingester_map(
+            r#"{
+              "ingesters": {
+                  "i1": {}
+              }
+            }"#,
+        );
+        assert_error!(map, Error::IngesterAddrRequired { ref name } if name.as_ref() == "i1");
+
+        let map = deserialize_sequencer_ingester_map(
+            r#"{
+              "ingesters": {
+                  "i1": {
+                      "addr": ""
+                  }
+              }
+            }"#,
+        );
+        assert_error!(map, Error::IngesterAddrRequired { ref name } if name.as_ref() == "i1");
+    }
+
+    #[test]
+    fn ingester_must_be_found() {
+        let map = deserialize_sequencer_ingester_map(
+            r#"{
+            "ingesters": {},
+            "sequencers": {
+                "1": {
+                  "ingester": "i1"
+                }
+            }
+        }"#,
+        );
+        assert_error!(
+            map,
+            Error::IngesterNotFound { sequencer, ref name }
+              if sequencer == 1 && name.as_ref() == "i1"
+        );
     }
 }
