@@ -492,8 +492,13 @@ pub trait TombstoneRepo: Send + Sync {
     ) -> Result<Vec<Tombstone>>;
 }
 
-/// The starting compaction level for parquet files is zero.
-pub const INITIAL_COMPACTION_LEVEL: i16 = 0;
+// /// Compaction levels
+// /// The starting compaction level for parquet files persisted by an Ingester is zero.
+// pub const INITIAL_COMPACTION_LEVEL: i16 = 0;
+// /// Level of files persisted by a Comapactor that overlapped with other level-1 files
+// pub const FILE_OVERLAPPED_COMPACTION_LEVEL: i16 = 1;
+// /// Level of files persisted by a Comapctor that do not over lap with non-level-0 files
+// pub const FILE_NON_OVERLAPPED_COMAPCTION_LEVEL: i16 = 2;
 
 /// Functions for working with parquet file pointers in the catalog
 #[async_trait]
@@ -550,9 +555,9 @@ pub trait ParquetFileRepo: Send + Sync {
         partition_id: PartitionId,
     ) -> Result<Vec<ParquetFile>>;
 
-    /// Update the compaction level of the specified parquet files to level 1. Returns the IDs
-    /// of the files that were successfully updated.
-    async fn update_to_level_1(
+    /// Update the compaction level of the specified parquet files to level FILE_NON_OVERLAPPED_COMPACTION_LEVEL
+    /// Returns the IDs of the files that were successfully updated.
+    async fn update_to_level_non_overlapped(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
     ) -> Result<Vec<ParquetFileId>>;
@@ -780,7 +785,7 @@ pub(crate) mod test_helpers {
 
     use super::*;
     use ::test_helpers::{assert_contains, tracing::TracingCapture};
-    use data_types::{ColumnId, ColumnSet};
+    use data_types::{ColumnId, ColumnSet, INITIAL_COMPACTION_LEVEL};
     use metric::{Attributes, DurationHistogram, Metric};
     use std::{
         ops::{Add, DerefMut},
@@ -2270,7 +2275,7 @@ pub(crate) mod test_helpers {
         let level_1_file = repos.parquet_files().create(level_1_params).await.unwrap();
         repos
             .parquet_files()
-            .update_to_level_1(&[level_1_file.id])
+            .update_to_level_non_overlapped(&[level_1_file.id])
             .await
             .unwrap();
 
@@ -2472,7 +2477,7 @@ pub(crate) mod test_helpers {
         // Make all but _level_0_file compaction level 1
         repos
             .parquet_files()
-            .update_to_level_1(&[
+            .update_to_level_non_overlapped(&[
                 parquet_file.id,
                 too_early_file.id,
                 too_late_file.id,
@@ -2593,7 +2598,7 @@ pub(crate) mod test_helpers {
             .unwrap();
         repos
             .parquet_files()
-            .update_to_level_1(&[level1_file.id])
+            .update_to_level_non_overlapped(&[level1_file.id])
             .await
             .unwrap();
         level1_file.compaction_level = 1;
@@ -2701,7 +2706,7 @@ pub(crate) mod test_helpers {
         // should succeed
         let updated = repos
             .parquet_files()
-            .update_to_level_1(&[parquet_file.id, nonexistent_parquet_file_id])
+            .update_to_level_non_overlapped(&[parquet_file.id, nonexistent_parquet_file_id])
             .await
             .unwrap();
         assert_eq!(updated, vec![parquet_file.id]);

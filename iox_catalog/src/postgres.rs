@@ -15,6 +15,7 @@ use data_types::{
     ParquetFile, ParquetFileId, ParquetFileParams, Partition, PartitionId, PartitionInfo,
     PartitionKey, ProcessedTombstone, QueryPool, QueryPoolId, SequenceNumber, Sequencer,
     SequencerId, Table, TableId, TablePartition, Timestamp, Tombstone, TombstoneId,
+    FILE_NON_OVERLAPPED_COMAPCTION_LEVEL,
 };
 use iox_time::{SystemProvider, TimeProvider};
 use observability_deps::tracing::{debug, info, warn};
@@ -1684,7 +1685,7 @@ WHERE parquet_file.partition_id = $1
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn update_to_level_1(
+    async fn update_to_level_non_overlapped(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
     ) -> Result<Vec<ParquetFileId>> {
@@ -1694,12 +1695,13 @@ WHERE parquet_file.partition_id = $1
         let updated = sqlx::query(
             r#"
 UPDATE parquet_file
-SET compaction_level = 1
-WHERE id = ANY($1)
+SET compaction_level = $1
+WHERE id = ANY($2)
 RETURNING id;
         "#,
         )
-        .bind(&ids[..])
+        .bind(FILE_NON_OVERLAPPED_COMAPCTION_LEVEL) // $1
+        .bind(&ids[..]) // $2
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })?;
