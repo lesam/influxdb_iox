@@ -1,7 +1,7 @@
 //! Query frontend for InfluxDB Storage gRPC requests
 
 use crate::{
-    exec::{field::FieldColumns, make_non_null_checker, make_schema_pivot, IOxSessionContext},
+    exec::{field::FieldColumns, make_non_null_checker, IOxSessionContext},
     frontend::common::ScanPlanBuilder,
     plan::{
         fieldlist::FieldListPlan,
@@ -338,7 +338,6 @@ impl InfluxRpcPlanner {
         // Key is table name, value is set of chunks which had data
         // for that table but that we couldn't evaluate the predicate
         // entirely using the metadata
-        let mut need_full_plans = BTreeMap::new();
         let mut known_columns = BTreeSet::new();
 
         let table_predicates = rpc_predicate
@@ -350,10 +349,6 @@ impl InfluxRpcPlanner {
                 .await
                 .context(GettingChunksSnafu { table_name })?;
             for chunk in chunks {
-                // If there are delete predicates, we need to scan (or do full plan) the data to eliminate
-                // deleted data before getting tag keys
-                let mut do_full_plan = chunk.has_delete_predicates();
-
                 // Try and apply the predicate using only metadata
                 let pred_result = chunk.apply_predicate_to_metadata(predicate).context(
                     CheckingChunkPredicateSnafu {
@@ -375,80 +370,34 @@ impl InfluxRpcPlanner {
 
                 let selection = Selection::Some(&column_names);
 
-                if !do_full_plan {
-                    // filter the columns further from the predicate
-                    let maybe_names = chunk
-                        .column_names(
-                            ctx.child_ctx("column_names execution"),
-                            predicate,
-                            selection,
-                        )
-                        .context(FindingColumnNamesSnafu)?;
 
-                    match maybe_names {
-                        Some(mut names) => {
-                            debug!(
+                // filter the columns further from the predicate
+                let maybe_names = chunk
+                    .column_names(
+                        ctx.child_ctx("column_names execution"),
+                        predicate,
+                        selection,
+                    )
+                    .context(FindingColumnNamesSnafu)?;
+
+                match maybe_names {
+                    Some(mut names) => {
+                        debug!(
                                 %table_name,
                                 names=?names,
                                 chunk_id=%chunk.id().get(),
                                 "column names found from metadata",
                             );
-                            known_columns.append(&mut names);
-                        }
-                        None => {
-                            do_full_plan = true;
-                        }
+                        known_columns.append(&mut names);
                     }
-                }
-
-                // can't get columns only from metadata, need
-                // a general purpose plan
-                if do_full_plan {
-                    debug!(
-                        %table_name,
-                        chunk_id=%chunk.id().get(),
-                        "column names need full plan"
-                    );
-
-                    need_full_plans
-                        .entry(table_name)
-                        .or_insert_with(Vec::new)
-                        .push(Arc::clone(&chunk));
-                }
-            }
-        }
-
-        let mut builder = StringSetPlanBuilder::new();
-
-        // At this point, we have a set of column names we know pass
-        // in `known_columns`, and potentially some tables in chunks
-        // that we need to run a plan to know if they pass the
-        // predicate.
-        if !need_full_plans.is_empty() {
-            // TODO an additional optimization here would be to filter
-            // out chunks (and tables) where all columns in that chunk
-            // were already known to have data (based on the contents of known_columns)
-
-            for (table_name, predicate) in &table_predicates {
-                if let Some(chunks) = need_full_plans.remove(table_name) {
-                    let schema = database
-                        .table_schema(table_name)
-                        .context(TableRemovedSnafu { table_name })?;
-
-                    let plan = self.tag_keys_plan(
-                        ctx.child_ctx("tag_keys_plan"),
-                        table_name,
-                        schema,
-                        predicate,
-                        chunks,
-                    )?;
-
-                    if let Some(plan) = plan {
-                        builder = builder.append_other(plan)
+                    None => {
+                        ()
                     }
                 }
             }
         }
+
+        let builder = StringSetPlanBuilder::new();
 
         // add the known columns we could find from metadata only
         builder
@@ -877,63 +826,6 @@ impl InfluxRpcPlanner {
         }
 
         Ok(SeriesSetPlans::new(ss_plans))
-    }
-
-    /// Creates a DataFusion LogicalPlan that returns column *names* as a
-    /// single column of Strings for a specific table
-    ///
-    /// The created plan looks like:
-    ///
-    /// ```text
-    ///  Extension(PivotSchema)
-    ///    Filter(predicate)
-    ///      TableScan (of chunks)
-    /// ```
-    fn tag_keys_plan(
-        &self,
-        ctx: IOxSessionContext,
-        table_name: &str,
-        schema: Arc<Schema>,
-        predicate: &Predicate,
-        chunks: Vec<Arc<dyn QueryChunk>>,
-    ) -> Result<Option<StringSetPlan>> {
-        let scan_and_filter = ScanPlanBuilder::new(schema)
-            .with_session_context(ctx.child_ctx("scan_and_filter planning"))
-            .with_predicate(predicate)
-            .with_chunks(chunks)
-            .build()?;
-
-        // now, select only the tag columns
-        let select_exprs = scan_and_filter
-            .schema()
-            .iter()
-            .filter_map(|(influx_column_type, field)| {
-                if matches!(influx_column_type, Some(InfluxColumnType::Tag)) {
-                    Some(col(field.name()))
-                } else {
-                    None
-                }
-            })
-            .collect::<Vec<_>>();
-
-        // If the projection is empty then there is no plan to execute.
-        if select_exprs.is_empty() {
-            return Ok(None);
-        }
-
-        let plan = scan_and_filter
-            .plan_builder
-            .project(select_exprs)
-            .context(BuildingPlanSnafu)?
-            .build()
-            .context(BuildingPlanSnafu)?;
-
-        // And finally pivot the plan
-        let plan = make_schema_pivot(plan);
-        debug!(table_name=table_name, plan=%plan.display_indent_schema(),
-               "created column_name plan for table");
-
-        Ok(Some(plan.into()))
     }
 
     /// Creates a DataFusion LogicalPlan that returns the timestamp
