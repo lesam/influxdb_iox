@@ -1630,7 +1630,7 @@ WHERE parquet_file.sequencer_id = $1
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn level_1(
+    async fn level_2(
         &mut self,
         table_partition: TablePartition,
         min_time: Timestamp,
@@ -1647,17 +1647,18 @@ FROM parquet_file
 WHERE parquet_file.sequencer_id = $1
   AND parquet_file.table_id = $2
   AND parquet_file.partition_id = $3
-  AND parquet_file.compaction_level = 1
+  AND parquet_file.compaction_level = $4
   AND parquet_file.to_delete IS NULL
-  AND ((parquet_file.min_time <= $4 AND parquet_file.max_time >= $4)
-      OR (parquet_file.min_time > $4 AND parquet_file.min_time <= $5));
+  AND ((parquet_file.min_time <= $5 AND parquet_file.max_time >= $5)
+      OR (parquet_file.min_time > $5 AND parquet_file.min_time <= $6));
         "#,
         )
         .bind(&table_partition.sequencer_id) // $1
         .bind(&table_partition.table_id) // $2
         .bind(&table_partition.partition_id) // $3
-        .bind(min_time) // $4
-        .bind(max_time) // $5
+        .bind(FILE_NON_OVERLAPPED_COMAPCTION_LEVEL) // $4
+        .bind(min_time) // $5
+        .bind(max_time) // $6
         .fetch_all(&mut self.inner)
         .await
         .map_err(|e| Error::SqlxError { source: e })
@@ -1685,7 +1686,7 @@ WHERE parquet_file.partition_id = $1
         .map_err(|e| Error::SqlxError { source: e })
     }
 
-    async fn update_to_level_non_overlapped(
+    async fn update_to_level_2(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
     ) -> Result<Vec<ParquetFileId>> {

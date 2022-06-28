@@ -1064,7 +1064,7 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn level_1(
+    async fn level_2(
         &mut self,
         table_partition: TablePartition,
         min_time: Timestamp,
@@ -1079,7 +1079,7 @@ impl ParquetFileRepo for MemTxn {
                 f.sequencer_id == table_partition.sequencer_id
                     && f.table_id == table_partition.table_id
                     && f.partition_id == table_partition.partition_id
-                    && f.compaction_level == 1
+                    && f.compaction_level == FILE_NON_OVERLAPPED_COMAPCTION_LEVEL
                     && f.to_delete.is_none()
                     && ((f.min_time <= min_time && f.max_time >= min_time)
                         || (f.min_time > min_time && f.min_time <= max_time))
@@ -1102,7 +1102,7 @@ impl ParquetFileRepo for MemTxn {
             .collect())
     }
 
-    async fn update_to_level_non_overlapped(
+    async fn update_to_level_2(
         &mut self,
         parquet_file_ids: &[ParquetFileId],
     ) -> Result<Vec<ParquetFileId>> {
