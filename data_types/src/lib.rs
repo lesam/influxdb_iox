@@ -900,15 +900,16 @@ pub struct ParquetFile {
     /// the number of rows of data in this file
     pub row_count: i64,
     /// the compaction level of the file
-    ///  . 0: represents a level-0 file that is persisted by an Ingester. Partitions with level-0 files
-    ///       are usually hot/recent partitions.
-    ///  . 1: represents a level-1 file that is persisted by a Compactor and potentially overlaps with other
-    ///       level-1 files. Partitions with level-1 files are partitions with a lot of or/and large
-    ///       overlapped files that have to go through many compaction cycles before they are fully
-    ///       compacted to non-overlapped files.
-    ///  . 2: represents a level-2 file that is persisted by a Compactor and does not overlap with
-    ///       other files except level 0 ones. Eventually, cold partitions (partitions that no longer
-    ///      needs to get compacted) will only include one or many level-2 files
+    ///  . 0 (INITIAL_COMPACTION_LEVEL): represents a level-0 file that is persisted by an Ingester.
+    ///       Partitions with level-0 files are usually hot/recent partitions.
+    ///  . 1 (FILE_OVERLAPPED_COMPACTION_LEVEL): represents a level-1 file that is persisted by a
+    ///       Compactor and potentially overlaps with other level-1 files. Partitions with level-1 files
+    ///       are partitions with a lot of or/and large overlapped files that have to go through many
+    ///       compaction cycles before they are fully compacted to non-overlapped files.
+    ///  . 2 (FILE_NON_OVERLAPPED_COMAPCTION_LEVEL): represents a level-2 file that is persisted by a
+    ///       Compactor and does not overlap with other files except level 0 ones. Eventually,
+    ///       cold partitions (partitions that no longer needs to get compacted) will only include
+    ///       one or many level-2 files
     pub compaction_level: i16,
     /// the creation time of the parquet file
     pub created_at: Timestamp,
