@@ -6,7 +6,7 @@ edition = "2021"
 
 [dependencies]
 arrow = { version = "16.0.0", features = ["prettyprint"] }
-arrow-flight = "16.0.0"
+arrow-flight = "17.0.0"
 arrow_util = { path = "../arrow_util" }
 async-trait = "0.1.56"
 backoff = { path = "../backoff" }
