@@ -492,14 +492,6 @@ pub trait TombstoneRepo: Send + Sync {
     ) -> Result<Vec<Tombstone>>;
 }
 
-// /// Compaction levels
-// /// The starting compaction level for parquet files persisted by an Ingester is zero.
-// pub const INITIAL_COMPACTION_LEVEL: i16 = 0;
-// /// Level of files persisted by a Comapactor that overlapped with other level-1 files
-// pub const FILE_OVERLAPPED_COMPACTION_LEVEL: i16 = 1;
-// /// Level of files persisted by a Comapctor that do not over lap with non-level-0 files
-// pub const FILE_NON_OVERLAPPED_COMAPCTION_LEVEL: i16 = 2;
-
 /// Functions for working with parquet file pointers in the catalog
 #[async_trait]
 pub trait ParquetFileRepo: Send + Sync {
