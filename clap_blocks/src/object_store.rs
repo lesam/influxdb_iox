@@ -432,6 +432,7 @@ pub async fn check_object_store(object_store: &DynObjectStore) -> Result<(), Che
 #[cfg(test)]
 mod tests {
     use clap::StructOpt;
+    use std::env;
     use tempfile::TempDir;
 
     use super::*;
@@ -587,6 +588,7 @@ mod tests {
 
     #[test]
     fn file_config_missing_params() {
+        env::remove_var("INFLUXDB_IOX_DB_DIR");
         let config =
             ObjectStoreConfig::try_parse_from(&["server", "--object-store", "file"]).unwrap();
 
