@@ -43,6 +43,12 @@ export TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgr
 cargo test --workspace
 ```
 
+Or for just the end-to-end tests (and not general tests or kafka):
+
+```shell
+TEST_INTEGRATION=1 TEST_INFLUXDB_IOX_CATALOG_DSN=postgresql://postgres@localhost:5432/postgres cargo test --test end_to_end
+```
+
 If you are debugging a failing end-to-end test, you will likely want to run with `--nocapture` to also get the logs from the test execution in addition to the server:
 
 ```
