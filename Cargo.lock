@@ -682,6 +682,7 @@ name = "clap_blocks"
 version = "0.1.0"
 dependencies = [
  "clap 3.2.6",
+ "data_types",
  "futures",
  "humantime",
  "iox_catalog",
@@ -689,8 +690,11 @@ dependencies = [
  "metric",
  "object_store",
  "observability_deps",
+ "serde",
+ "serde_json",
  "snafu",
  "tempfile",
+ "test_helpers",
  "trace",
  "trace_exporters",
  "trogging",
@@ -1135,7 +1139,7 @@ dependencies = [
 [[package]]
 name = "datafusion"
 version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=748b6a65a5fa801595fd80a3c7b2728be3c9cdaa#748b6a65a5fa801595fd80a3c7b2728be3c9cdaa"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=839a61896f0fc3f617a79da1dd4018b2aa6af283#839a61896f0fc3f617a79da1dd4018b2aa6af283"
 dependencies = [
  "ahash",
  "arrow",
@@ -1173,7 +1177,7 @@ dependencies = [
 [[package]]
 name = "datafusion-common"
 version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=748b6a65a5fa801595fd80a3c7b2728be3c9cdaa#748b6a65a5fa801595fd80a3c7b2728be3c9cdaa"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=839a61896f0fc3f617a79da1dd4018b2aa6af283#839a61896f0fc3f617a79da1dd4018b2aa6af283"
 dependencies = [
  "arrow",
  "ordered-float 3.0.0",
@@ -1184,7 +1188,7 @@ dependencies = [
 [[package]]
 name = "datafusion-data-access"
 version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=748b6a65a5fa801595fd80a3c7b2728be3c9cdaa#748b6a65a5fa801595fd80a3c7b2728be3c9cdaa"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=839a61896f0fc3f617a79da1dd4018b2aa6af283#839a61896f0fc3f617a79da1dd4018b2aa6af283"
 dependencies = [
  "async-trait",
  "chrono",
@@ -1197,7 +1201,7 @@ dependencies = [
 [[package]]
 name = "datafusion-expr"
 version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=748b6a65a5fa801595fd80a3c7b2728be3c9cdaa#748b6a65a5fa801595fd80a3c7b2728be3c9cdaa"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=839a61896f0fc3f617a79da1dd4018b2aa6af283#839a61896f0fc3f617a79da1dd4018b2aa6af283"
 dependencies = [
  "ahash",
  "arrow",
@@ -1208,7 +1212,7 @@ dependencies = [
 [[package]]
 name = "datafusion-optimizer"
 version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=748b6a65a5fa801595fd80a3c7b2728be3c9cdaa#748b6a65a5fa801595fd80a3c7b2728be3c9cdaa"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=839a61896f0fc3f617a79da1dd4018b2aa6af283#839a61896f0fc3f617a79da1dd4018b2aa6af283"
 dependencies = [
  "arrow",
  "async-trait",
@@ -1223,7 +1227,7 @@ dependencies = [
 [[package]]
 name = "datafusion-physical-expr"
 version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=748b6a65a5fa801595fd80a3c7b2728be3c9cdaa#748b6a65a5fa801595fd80a3c7b2728be3c9cdaa"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=839a61896f0fc3f617a79da1dd4018b2aa6af283#839a61896f0fc3f617a79da1dd4018b2aa6af283"
 dependencies = [
  "ahash",
  "arrow",
@@ -1247,7 +1251,7 @@ dependencies = [
 [[package]]
 name = "datafusion-proto"
 version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=748b6a65a5fa801595fd80a3c7b2728be3c9cdaa#748b6a65a5fa801595fd80a3c7b2728be3c9cdaa"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=839a61896f0fc3f617a79da1dd4018b2aa6af283#839a61896f0fc3f617a79da1dd4018b2aa6af283"
 dependencies = [
  "arrow",
  "datafusion 9.0.0",
@@ -1260,7 +1264,7 @@ dependencies = [
 [[package]]
 name = "datafusion-row"
 version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=748b6a65a5fa801595fd80a3c7b2728be3c9cdaa#748b6a65a5fa801595fd80a3c7b2728be3c9cdaa"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=839a61896f0fc3f617a79da1dd4018b2aa6af283#839a61896f0fc3f617a79da1dd4018b2aa6af283"
 dependencies = [
  "arrow",
  "datafusion-common",
@@ -1271,7 +1275,7 @@ dependencies = [
 [[package]]
 name = "datafusion-sql"
 version = "9.0.0"
-source = "git+https://github.com/apache/arrow-datafusion.git?rev=748b6a65a5fa801595fd80a3c7b2728be3c9cdaa#748b6a65a5fa801595fd80a3c7b2728be3c9cdaa"
+source = "git+https://github.com/apache/arrow-datafusion.git?rev=839a61896f0fc3f617a79da1dd4018b2aa6af283#839a61896f0fc3f617a79da1dd4018b2aa6af283"
 dependencies = [
  "ahash",
  "arrow",
@@ -1286,10 +1290,12 @@ dependencies = [
 name = "datafusion_util"
 version = "0.1.0"
 dependencies = [
+ "async-trait",
  "datafusion 0.1.0",
  "futures",
  "observability_deps",
  "pin-project",
+ "schema",
  "tokio",
  "tokio-stream",
  "workspace-hack",
@@ -1420,9 +1426,9 @@ checksum = "140206b78fb2bc3edbcfc9b5ccbd0b30699cfe8d348b8b31b330e47df5291a5a"
 
 [[package]]
 name = "either"
-version = "1.6.1"
+version = "1.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e78d4f1cc4ae33bbfc157ed5d5a5ef3bc29227303d595861deb238fcec4e9457"
+checksum = "3f107b87b6afc2a64fd13cac55fe06d6c8859f12d4b14cbcdd2c67d0976781be"
 
 [[package]]
 name = "encoding_rs"
@@ -2206,12 +2212,12 @@ dependencies = [
  "iox_catalog",
  "iox_query",
  "iox_time",
- "lazy_static",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
  "object_store",
  "observability_deps",
+ "once_cell",
  "parking_lot 0.12.1",
  "parquet_file",
  "paste",
@@ -3188,9 +3194,9 @@ dependencies = [
 
 [[package]]
 name = "object_store"
-version = "0.0.1"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "71fc15440e94ba9b3a8bc83c8f94a0d5a2861d72254cdb9ede72fbbd18e015db"
+checksum = "857af043f5d9f36ed4f71815857f79b841412dda1cf0ca5a29608874f6f038e2"
 dependencies = [
  "async-trait",
  "azure_core",
@@ -3209,10 +3215,9 @@ dependencies = [
  "rusoto_credential",
  "rusoto_s3",
  "snafu",
- "tempfile",
  "tokio",
- "tokio-util",
  "tracing",
+ "url",
  "walkdir",
 ]
 
@@ -3919,8 +3924,8 @@ dependencies = [
  "datafusion 0.1.0",
  "datafusion_util",
  "itertools",
- "lazy_static",
  "observability_deps",
+ "once_cell",
  "regex",
  "regex-syntax",
  "schema",
@@ -3956,6 +3961,7 @@ dependencies = [
  "predicate",
  "querier",
  "schema",
+ "sharder",
  "snafu",
  "tempfile",
  "test_helpers",
@@ -4242,13 +4248,13 @@ dependencies = [
  "hyper",
  "iox_catalog",
  "iox_time",
- "lazy_static",
  "metric",
  "mutable_batch",
  "mutable_batch_lp",
  "mutable_batch_pb",
  "object_store",
  "observability_deps",
+ "once_cell",
  "parking_lot 0.12.1",
  "paste",
  "predicate",
@@ -4605,9 +4611,9 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.81"
+version = "1.0.82"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9b7ce2b32a1aed03c558dc61a5cd328f15aff2dbc17daad8fb8af04d2100e15c"
+checksum = "82c2c1fdcd807d1098552c5b9a36e425e42e9fbd7c6a37a8425f390f781f7fa7"
 dependencies = [
  "indexmap",
  "itoa 1.0.2",
@@ -4891,9 +4897,9 @@ checksum = "eb703cfe953bccee95685111adeedb76fabe4e97549a58d16f03ea7b9367bb32"
 
 [[package]]
 name = "smallvec"
-version = "1.8.1"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cc88c725d61fc6c3132893370cac4a0200e3fedf5da8331c570664b1987f5ca2"
+checksum = "2fd0db749597d91ff862fd1d55ea87f7855a744a8425a64695b6fca237d1dad1"
 
 [[package]]
 name = "snafu"
@@ -5243,7 +5249,6 @@ dependencies = [
  "http",
  "hyper",
  "influxdb_iox_client",
- "lazy_static",
  "nix 0.24.1",
  "observability_deps",
  "once_cell",

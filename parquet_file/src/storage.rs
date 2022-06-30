@@ -13,7 +13,7 @@ use arrow::{
 };
 use bytes::Bytes;
 use datafusion::{parquet::arrow::ProjectionMask, physical_plan::SendableRecordBatchStream};
-use datafusion_util::{AdapterStream, AutoAbortJoinHandle};
+use datafusion_util::{watch::WatchedTask, AdapterStream};
 use futures::{Stream, TryStreamExt};
 use object_store::{DynObjectStore, GetResult};
 use observability_deps::tracing::*;
@@ -192,27 +192,28 @@ impl ParquetStorage {
         // not silently ignored
         let object_store = Arc::clone(&self.object_store);
         let schema_captured = Arc::clone(&schema);
-        let handle = tokio::task::spawn(async move {
+        let tx_captured = tx.clone();
+        let fut = async move {
             let download_result =
-                download_and_scan_parquet(schema_captured, path, object_store, tx.clone()).await;
+                download_and_scan_parquet(schema_captured, path, object_store, tx_captured.clone())
+                    .await;
 
             // If there was an error returned from download_and_scan_parquet send it back to the receiver.
             if let Err(e) = download_result {
                 warn!(error=%e, "Parquet download & scan failed");
                 let e = ArrowError::ExternalError(Box::new(e));
-                if let Err(e) = tx.send(ArrowResult::Err(e)).await {
+                if let Err(e) = tx_captured.send(ArrowResult::Err(e)).await {
                     // if no one is listening, there is no one else to hear our screams
                     debug!(%e, "Error sending result of download function. Receiver is closed.");
                 }
             }
-        });
+
+            Ok(())
+        };
+        let handle = WatchedTask::new(fut, vec![tx], "download and scan parquet");
 
         // returned stream simply reads off the rx channel
-        Ok(AdapterStream::adapt(
-            schema,
-            rx,
-            Some(Arc::new(AutoAbortJoinHandle::new(handle))),
-        ))
+        Ok(AdapterStream::adapt(schema, rx, handle))
     }
 
     /// Read all data from the parquet file.
@@ -269,8 +270,9 @@ async fn download_and_scan_parquet(
     let read_stream = object_store.get(&path).await?;
 
     let data = match read_stream {
-        GetResult::File(mut f, _) => {
+        GetResult::File(f, _) => {
             trace!(?path, "Using file directly");
+            let mut f = tokio::fs::File::from_std(f);
             let l = f.metadata().await?.len();
             let mut buf = Vec::with_capacity(l as usize);
             f.read_to_end(&mut buf).await?;
