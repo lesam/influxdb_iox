@@ -19,6 +19,7 @@ async fn default_mode_is_run_all_in_one() {
         // prod DSN is set - all other tests use TEST_INFLUXDB_IOX_CATALOG_DSN
         // but this one will use the real env if not cleared.
         .env_clear()
+        // Without this, we have errors about writing read-only root filesystem on macos.
         .env("HOME", tmpdir.path())
         .timeout(Duration::from_secs(2))
         .assert()
