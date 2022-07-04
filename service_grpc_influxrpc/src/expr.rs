@@ -1020,8 +1020,8 @@ mod tests {
             .build();
         let predicate = table_predicate(predicate);
 
-        // predicate is rewritten to true, and projection is added
-        let expected_exprs = vec![lit(true)];
+        // predicate is rewritten to true (which is simplified to an empty predicate list), and projection is added
+        let expected_exprs: Vec<Expr> = vec![];
 
         assert_eq!(
             &expected_exprs, &predicate.exprs,

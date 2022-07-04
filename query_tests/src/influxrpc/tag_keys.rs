@@ -170,7 +170,7 @@ async fn list_tag_name_end_to_end() {
 }
 
 #[tokio::test]
-async fn list_tag_name_end_to_end_with_delete_pred() {
+async fn list_tag_name_end_to_end_with_delete_and_pred() {
     let predicate = Predicate::default()
         .with_range(0, 10000)
         .with_expr(col("host").eq(lit("server01")));
@@ -181,10 +181,9 @@ async fn list_tag_name_end_to_end_with_delete_pred() {
 
 #[tokio::test]
 async fn list_tag_name_end_to_end_with_delete() {
-    let predicate = Predicate::default()
-        .with_expr(col("_measurement").eq(lit("swap")));
+    let predicate = Predicate::default().with_expr(col("_measurement").eq(lit("swap")));
     let predicate = InfluxRpcPredicate::new(None, predicate);
-    let expected_tag_keys = vec![];
+    let expected_tag_keys = vec!["host", "name"];
     run_tag_keys_test_case(EndToEndTestWithDelete {}, predicate, expected_tag_keys).await;
 }
 
