@@ -6,9 +6,9 @@ mod value_rewrite;
 
 use crate::{rewrite, Predicate};
 
-use datafusion::common::ScalarValue;
 use datafusion::error::{DataFusionError, Result as DataFusionResult};
 use datafusion::execution::context::ExecutionProps;
+use datafusion::logical_expr::lit;
 use datafusion::logical_plan::{
     Column, Expr, ExprSchema, ExprSchemable, ExprSimplifiable, SimplifyInfo,
 };
@@ -202,7 +202,7 @@ fn normalize_predicate(
         // Filter out literal true so is_empty works correctly
         .filter(|f| match f {
             Err(_) => true,
-            Ok(expr) => !expr.eq(&Expr::Literal(ScalarValue::Boolean(Option::Some(true)))),
+            Ok(expr) => (*expr) != lit(true),
         })
         .collect::<DataFusionResult<Vec<_>>>()?;
 
