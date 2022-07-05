@@ -220,7 +220,7 @@ impl Predicate {
     /// existing storage engine
     pub(crate) fn with_clear_timestamp_if_max_range(mut self) -> Self {
         self.range = self.range.take().and_then(|range| {
-            if range.start() <= MIN_NANO_TIME && range.end() >= MAX_NANO_TIME {
+            if range.start() <= MIN_NANO_TIME && range.end() > MAX_NANO_TIME {
                 None
             } else {
                 Some(range)
@@ -770,7 +770,7 @@ mod tests {
     #[test]
     fn test_clear_timestamp_if_max_range_out_of_range_high() {
         let p = Predicate::new()
-            .with_range(0, MAX_NANO_TIME)
+            .with_range(0, MAX_NANO_TIME + 1)
             .with_expr(col("foo").eq(lit(42)));
 
         let expected = p.clone();
@@ -782,7 +782,7 @@ mod tests {
     #[test]
     fn test_clear_timestamp_if_max_range_in_range() {
         let p = Predicate::new()
-            .with_range(MIN_NANO_TIME, MAX_NANO_TIME)
+            .with_range(MIN_NANO_TIME, MAX_NANO_TIME + 1)
             .with_expr(col("foo").eq(lit(42)));
 
         let expected = Predicate::new().with_expr(col("foo").eq(lit(42)));

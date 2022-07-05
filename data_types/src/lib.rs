@@ -2085,14 +2085,14 @@ impl TimestampRange {
     ///
     /// Takes an inclusive start and an exclusive end. You may create an empty range by setting `start = end`.
     ///
-    /// Clamps to [`MIN_NANO_TIME`]/[`MAX_NANO_TIME`].
+    /// Clamps start to [`MIN_NANO_TIME`].
+    /// end is unclamped - end may be set to i64:MAX == MAX_NANO_TIME+1 to indicate no restriction on time.
     ///
     /// # Panic
     /// Panics if `start > end`.
     pub fn new(start: i64, end: i64) -> Self {
         assert!(end >= start, "start ({start}) > end ({end})");
         let start = start.max(MIN_NANO_TIME);
-        let end = end.min(MAX_NANO_TIME);
         Self { start, end }
     }
 
@@ -3104,8 +3104,8 @@ mod tests {
     fn test_timestamp_nano_min_max() {
         let cases = vec![
             (
-                "MIN/MAX Nanos",
-                TimestampRange::new(MIN_NANO_TIME, MAX_NANO_TIME),
+                "MIN / MAX Nanos",
+                TimestampRange::new(MIN_NANO_TIME, MAX_NANO_TIME + 1),
             ),
             ("MIN/MAX i64", TimestampRange::new(i64::MIN, i64::MAX)),
         ];
@@ -3116,7 +3116,7 @@ mod tests {
             assert!(range.contains(MIN_NANO_TIME));
             assert!(range.contains(MIN_NANO_TIME + 1));
             assert!(range.contains(MAX_NANO_TIME - 1));
-            assert!(!range.contains(MAX_NANO_TIME));
+            assert!(range.contains(MAX_NANO_TIME));
             assert!(!range.contains(i64::MAX));
         }
     }
