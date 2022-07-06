@@ -2097,6 +2097,11 @@ impl TimestampRange {
         Self { start, end }
     }
 
+    /// Returns true if this range contains all representable timestamps
+    pub fn contains_all(&self) -> bool {
+        self.start <= MIN_NANO_TIME && self.end > MAX_NANO_TIME
+    }
+
     #[inline]
     /// Returns true if this range contains the value v
     pub fn contains(&self, v: i64) -> bool {
@@ -3114,11 +3119,13 @@ mod tests {
         for (name, range) in cases {
             println!("case: {}", name);
             assert!(!range.contains(i64::MIN));
+            assert!(!range.contains(i64::MIN + 1));
             assert!(range.contains(MIN_NANO_TIME));
             assert!(range.contains(MIN_NANO_TIME + 1));
             assert!(range.contains(MAX_NANO_TIME - 1));
             assert!(range.contains(MAX_NANO_TIME));
             assert!(!range.contains(i64::MAX));
+            assert!(range.contains_all());
         }
     }
 
@@ -3133,6 +3140,7 @@ mod tests {
         assert!(!range.contains(MAX_NANO_TIME - 1));
         assert!(!range.contains(MAX_NANO_TIME));
         assert!(!range.contains(i64::MAX));
+        assert!(!range.contains_all());
     }
 
     #[test]
