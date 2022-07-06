@@ -13,6 +13,7 @@ use influxdb_iox_client::{connection::Connection, flight::generated_types::ReadI
 use observability_deps::tracing::{debug, info};
 use snafu::{ResultExt, Snafu};
 use std::{collections::HashMap, sync::Arc, time::Instant};
+use generated_types::influxdata::iox::querier::v1::read_info::QueryString::SqlQuery;
 
 #[derive(Debug, Snafu)]
 pub enum Error {
@@ -122,7 +123,7 @@ async fn load_remote_system_tables(
                     let mut query_results = client
                         .perform_query(ReadInfo {
                             namespace_name: db_name.clone(),
-                            sql_query: sql,
+                            query_string: Some(SqlQuery(sql)),
                         })
                         .await
                         .context(RunningRemoteQuerySnafu)?;

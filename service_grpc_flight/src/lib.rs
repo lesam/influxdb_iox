@@ -25,11 +25,20 @@ use snafu::{ResultExt, Snafu};
 use std::{fmt::Debug, pin::Pin, sync::Arc, task::Poll};
 use tokio::task::JoinHandle;
 use tonic::{Request, Response, Streaming};
+use generated_types::influxdata::iox::querier::v1::read_info::QueryString::{InfluxqlQuery, SqlQuery};
 use tracker::InstrumentedAsyncOwnedSemaphorePermit;
+use crate::Error::{InfluxqlNotImplemented, QueryMissing};
 
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug, Snafu)]
 pub enum Error {
+
+    #[snafu(display("Invalid ticket - no query"))]
+    QueryMissing,
+
+    #[snafu(display("InfluxQL query not implemented"))]
+    InfluxqlNotImplemented,
+
     #[snafu(display("Invalid ticket. Error: {:?}", source))]
     InvalidTicket { source: prost::DecodeError },
 
@@ -83,6 +92,8 @@ impl From<Error> for tonic::Status {
             | Error::InvalidTicket { .. }
             | Error::InvalidTicketLegacy { .. }
             | Error::InvalidQuery { .. }
+            | QueryMissing
+            | InfluxqlNotImplemented
             // TODO(edd): this should be `debug`. Keeping at info whilst IOx still in early development
             | Error::InvalidDatabaseName { .. } => info!(?err, msg),
             Error::Query { .. } => info!(?err, msg),
@@ -99,6 +110,8 @@ impl Error {
     fn to_status(&self) -> tonic::Status {
         use tonic::Status;
         match &self {
+            QueryMissing => Status::invalid_argument(self.to_string()),
+            InfluxqlNotImplemented => Status::not_found(self.to_string()),
             Self::InvalidTicket { .. } => Status::invalid_argument(self.to_string()),
             Self::InvalidTicketLegacy { .. } => Status::invalid_argument(self.to_string()),
             Self::InvalidQuery { .. } => Status::invalid_argument(self.to_string()),
@@ -117,33 +130,63 @@ impl Error {
 
 type TonicStream<T> = Pin<Box<dyn Stream<Item = Result<T, tonic::Status>> + Send + Sync + 'static>>;
 
-#[derive(Deserialize, Debug)]
+#[derive(Debug)]
+enum Query {
+    SQL(String),
+    InfluxQL(String),
+}
+
+#[derive(Debug)]
 /// Body of the `Ticket` serialized and sent to the do_get endpoint.
 struct ReadInfo {
     database_name: String,
+    sql_query: Query,
+}
+
+#[derive(Deserialize, Debug)]
+/// Body of the `Ticket` serialized and sent to the do_get endpoint.
+struct LegacyReadInfo {
+    database_name: String,
     sql_query: String,
+}
+
+impl From<LegacyReadInfo> for ReadInfo {
+    fn from(l: LegacyReadInfo) -> Self {
+        ReadInfo{
+            database_name: l.database_name,
+            sql_query: Query::InfluxQL(l.sql_query),
+        }
+    }
 }
 
 impl ReadInfo {
     fn decode_json(ticket: &[u8]) -> Result<Self> {
         let json_str = String::from_utf8(ticket.to_vec()).context(InvalidTicketLegacySnafu {})?;
 
-        let read_info: ReadInfo =
+        let read_info: LegacyReadInfo =
             serde_json::from_str(&json_str).context(InvalidQuerySnafu { query: &json_str })?;
 
-        Ok(read_info)
+        Ok(read_info.into())
     }
 
     fn decode_protobuf(ticket: &[u8]) -> Result<Self> {
         let read_info =
             proto::ReadInfo::decode(Bytes::from(ticket.to_vec())).context(InvalidTicketSnafu {})?;
 
-        Ok(Self {
-            database_name: read_info.namespace_name,
-            sql_query: read_info.sql_query,
-        })
+        match read_info.query_string {
+            Some(SqlQuery(query)) => Ok(Self {
+                database_name: read_info.namespace_name,
+                sql_query: Query::SQL(query),
+            }),
+            Some(InfluxqlQuery(query)) =>  Ok(Self {
+                database_name: read_info.namespace_name,
+                sql_query: Query::InfluxQL(query),
+            }),
+            None => Err(QueryMissing),
+        }
     }
 }
+
 
 /// Concrete implementation of the gRPC Arrow Flight Service API
 #[derive(Debug)]
@@ -207,12 +250,17 @@ where
                 tonic::Status::not_found(format!("Unknown namespace: {database}"))
             })?;
 
+        let sql_query = match read_info.sql_query {
+            Query::SQL(sql) => sql,
+            Query::InfluxQL(_) => return Err(InfluxqlNotImplemented.into()),
+        };
+
         let ctx = db.new_query_context(span_ctx);
         let query_completed_token =
-            db.record_query(&ctx, "sql", Box::new(read_info.sql_query.clone()));
+            db.record_query(&ctx, "sql", Box::new(sql_query.clone()));
 
         let physical_plan = Planner::new(&ctx)
-            .sql(&read_info.sql_query)
+            .sql(&sql_query)
             .await
             .context(PlanningSnafu)?;
 

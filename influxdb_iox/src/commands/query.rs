@@ -5,11 +5,15 @@ use influxdb_iox_client::{
 };
 use std::str::FromStr;
 use thiserror::Error;
+use generated_types::influxdata::iox::querier::v1::read_info::QueryString::{InfluxqlQuery, SqlQuery};
 
 #[derive(Debug, Error)]
 pub enum Error {
     #[error("Error formatting: {0}")]
     Formatting(#[from] influxdb_iox_client::format::Error),
+
+    #[error("Invalid dialect: `{0}`")]
+    Dialect(String),
 
     #[error("Error querying: {0}")]
     Query(#[from] influxdb_iox_client::flight::Error),
@@ -31,6 +35,10 @@ pub struct Config {
     /// Optional format ('pretty', 'json', or 'csv')
     #[clap(short, long, default_value = "pretty", action)]
     format: String,
+
+    /// Optional dialect ('sql', or 'influxql')
+    #[clap(short, long, default_value = "sql", action)]
+    dialect: String,
 }
 
 pub async fn command(connection: Connection, config: Config) -> Result<()> {
@@ -39,14 +47,21 @@ pub async fn command(connection: Connection, config: Config) -> Result<()> {
         namespace,
         format,
         query,
+        dialect,
     } = config;
 
     let format = QueryOutputFormat::from_str(&format)?;
 
+    let query_string = match dialect.as_str() {
+        "sql" => Some(SqlQuery(query)),
+        "influxql" => Some(InfluxqlQuery(query)),
+        _ => return Err(Error::Dialect(dialect))
+    };
+
     let mut query_results = client
         .perform_query(ReadInfo {
             namespace_name: namespace,
-            sql_query: query,
+            query_string,
         })
         .await?;
 

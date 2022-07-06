@@ -7,6 +7,7 @@ use arrow::{
 use observability_deps::tracing::{debug, info};
 use rustyline::{error::ReadlineError, Editor};
 use snafu::{ResultExt, Snafu};
+use generated_types::influxdata::iox::querier::v1::read_info::QueryString::SqlQuery;
 
 use super::repl_command::ReplCommand;
 
@@ -413,7 +414,7 @@ async fn scrape_query(
     let mut query_results = client
         .perform_query(ReadInfo {
             namespace_name: db_name.to_string(),
-            sql_query: query.to_string(),
+            query_string: Some(SqlQuery(query.to_string())),
         })
         .await
         .context(RunningRemoteQuerySnafu)?;
