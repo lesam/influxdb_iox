@@ -2093,6 +2093,7 @@ impl TimestampRange {
     pub fn new(start: i64, end: i64) -> Self {
         assert!(end >= start, "start ({start}) > end ({end})");
         let start = start.max(MIN_NANO_TIME);
+        let end = end.max(MIN_NANO_TIME);
         Self { start, end }
     }
 
