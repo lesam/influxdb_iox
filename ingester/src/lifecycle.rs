@@ -223,7 +223,7 @@ struct PartitionLifecycleStats {
 impl LifecycleManager {
     /// Initialize a new lifecycle manager that will persist when `maybe_persist` is called
     /// if anything is over the size or age threshold.
-    pub(crate) fn new(
+    pub fn new(
         config: LifecycleConfig,
         metric_registry: Arc<metric::Registry>,
         time_provider: Arc<dyn TimeProvider>,

@@ -9,10 +9,7 @@
     clippy::future_not_send
 )]
 
-use crate::commands::{
-    run::all_in_one,
-    tracing::{init_logs_and_tracing, init_simple_logs, TroggingGuard},
-};
+use crate::commands::{bulk_ingest, run::all_in_one, tracing::{init_logs_and_tracing, init_simple_logs, TroggingGuard}};
 use dotenv::dotenv;
 use influxdb_iox_client::connection::Builder;
 use iox_time::{SystemProvider, TimeProvider};
@@ -27,6 +24,7 @@ use std::{
 use tokio::runtime::Runtime;
 
 mod commands {
+    pub mod bulk_ingest;
     pub mod catalog;
     pub mod debug;
     pub mod objectstore_garbage_collect;
@@ -148,6 +146,8 @@ enum Command {
     /// Run the InfluxDB IOx server
     // Clippy recommended boxing this variant because it's much larger than the others
     Run(Box<commands::run::Config>),
+
+    BulkIngest(commands::bulk_ingest::Config),
 
     /// Commands to run against remote IOx APIs
     Remote(commands::remote::Config),
@@ -318,6 +318,13 @@ fn main() -> Result<(), std::io::Error> {
                     for cause in ErrorCompat::iter_chain(&e).skip(1) {
                         eprintln!("Caused by: {cause}");
                     }
+                    std::process::exit(ReturnCode::Failure as _)
+                }
+            }
+            Some(Command::BulkIngest(config)) => {
+                let _tracing_guard = handle_init_logs(init_simple_logs(log_verbose_count));
+                if let Err(e) = bulk_ingest::command(config).await {
+                    eprintln!("Server command failed: {}", e);
                     std::process::exit(ReturnCode::Failure as _)
                 }
             }

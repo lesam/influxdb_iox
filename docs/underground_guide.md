@@ -20,14 +20,11 @@ cargo build --release --features=pprof
 
 ## Step 2: Start redpanda and postgres
 
-Now, start up redpanda and postgres locally in docker containers:
+Now, start up redpanda and postgres locally in docker containers using
+[integration-docker-compose.yml](integration-docker-compose.yml).
+
 ```shell
-# get rskafka from https://github.com/influxdata/rskafka
-cd rskafka
-# Run redpanda on localhost:9010
-docker-compose -f docker-compose-redpanda.yml up &
-# now run postgres
-docker run -p 5432:5432 -e POSTGRES_HOST_AUTH_METHOD=trust postgres &
+docker-compose -f integration-docker-compose.yml up
 ```
 
 Of course, you can also use locally running services (if, for example,
@@ -40,7 +37,7 @@ you have postgres running locally on port 5432).
 ```shell
 # initialize the catalog
 INFLUXDB_IOX_WRITE_BUFFER_TYPE=kafka \
-INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9010 \
+INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9092 \
 INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS=10 \
 INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
 OBJECT_STORE=file \
@@ -50,7 +47,7 @@ LOG_FILTER=debug \
 
 # initialize the kafka topic
 INFLUXDB_IOX_WRITE_BUFFER_TYPE=kafka \
-INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9010 \
+INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9092 \
 INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS=10 \
 INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
 OBJECT_STORE=file \
@@ -119,7 +116,7 @@ iox-shared  1           1
 INFLUXDB_IOX_BIND_ADDR=localhost:8080 \
 INFLUXDB_IOX_GRPC_BIND_ADDR=localhost:8081 \
 INFLUXDB_IOX_WRITE_BUFFER_TYPE=kafka \
-INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9010 \
+INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9092 \
 INFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS=10 \
 INFLUXDB_IOX_CATALOG_DSN=postgres://postgres@localhost:5432/postgres \
 OBJECT_STORE=file \
@@ -134,7 +131,7 @@ LOG_FILTER=info \
 INFLUXDB_IOX_BIND_ADDR=localhost:8083 \
 INFLUXDB_IOX_GRPC_BIND_ADDR=localhost:8084 \
 INFLUXDB_IOX_WRITE_BUFFER_TYPE=kafka \
-INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9010 \
+INFLUXDB_IOX_WRITE_BUFFER_ADDR=localhost:9092 \
 xINFLUXDB_IOX_WRITE_BUFFER_AUTO_CREATE_TOPICS=10 \
 INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_START=0 \
 INFLUXDB_IOX_WRITE_BUFFER_PARTITION_RANGE_END=0 \

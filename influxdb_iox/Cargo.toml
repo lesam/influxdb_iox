@@ -7,13 +7,17 @@ default-run = "influxdb_iox"
 
 [dependencies]
 # Workspace dependencies, in alphabetical order
+backoff = { path = "../backoff" }
 clap_blocks = { path = "../clap_blocks" }
 data_types = { path = "../data_types" }
 datafusion = { path = "../datafusion" }
+dml = { path = "../dml" }
 generated_types = { path = "../generated_types" }
 influxdb_iox_client = { path = "../influxdb_iox_client", features = ["flight", "format", "write_lp"] }
+influxdb_line_protocol = {path = "../influxdb_line_protocol"}
 influxdb_storage_client = { path = "../influxdb_storage_client" }
 influxrpc_parser = { path = "../influxrpc_parser"}
+ingester = { path = "../ingester"}
 iox_catalog = { path = "../iox_catalog" }
 iox_objectstore_garbage_collect = { path = "../iox_objectstore_garbage_collect" }
 ioxd_common = { path = "../ioxd_common"}
@@ -23,6 +27,7 @@ ioxd_router = { path = "../ioxd_router"}
 ioxd_querier = { path = "../ioxd_querier"}
 ioxd_test = { path = "../ioxd_test"}
 metric = { path = "../metric" }
+mutable_batch_lp = { path = "../mutable_batch_lp" }
 object_store = "0.3.0"
 object_store_metrics = { path = "../object_store_metrics" }
 observability_deps = { path = "../observability_deps" }
