@@ -34,6 +34,7 @@ observability_deps = { path = "../observability_deps" }
 panic_logging = { path = "../panic_logging" }
 parquet_file = { path = "../parquet_file" }
 iox_query = { path = "../iox_query" }
+router = {path = "../router"}
 schema = { path = "../schema" }
 sharder = { path = "../sharder" }
 iox_time = { path = "../iox_time" }
