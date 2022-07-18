@@ -51,6 +51,20 @@ impl DmlMeta {
         }
     }
 
+    /// Create a new [`DmlMeta`] for a timed operation
+    pub fn timed (
+        producer_ts: Time,
+        span_ctx: Option<SpanContext>,
+        bytes_read: usize,
+    ) -> Self {
+        Self {
+            sequence: None,
+            producer_ts: Some(producer_ts),
+            span_ctx,
+            bytes_read: Some(bytes_read),
+        }
+    }
+
     /// Create a new [`DmlMeta`] for an unsequenced operation
     pub fn unsequenced(span_ctx: Option<SpanContext>) -> Self {
         Self {

@@ -588,15 +588,17 @@ impl NamespaceData {
         let sequence_number = dml_operation
             .meta()
             .sequence()
-            .expect("must have sequence number")
-            .sequence_number;
+            .map_or(None, |x| Some(x.sequence_number));
 
         // Note that this namespace is actively writing this sequence
         // number. Since there is no namespace wide lock held during a
         // write, this number is used to detect and update reported
         // progress during a write
-        let _sequence_number_guard =
-            ScopedSequenceNumber::new(sequence_number, &self.buffering_sequence_number);
+        let _sequence_number_guard;
+        match sequence_number {
+            Some(n) => {_sequence_number_guard = ScopedSequenceNumber::new(n, &self.buffering_sequence_number);},
+            None => (),
+        }
 
         match dml_operation {
             DmlOperation::Write(write) => {
@@ -648,7 +650,7 @@ impl NamespaceData {
                         table_name,
                         delete.predicate(),
                         sequencer_id,
-                        sequence_number,
+                        sequence_number.expect("deletes must have sequence number"),
                         catalog,
                         executor,
                     )
@@ -874,7 +876,7 @@ impl TableData {
     // ingest should be paused.
     async fn buffer_table_write(
         &mut self,
-        sequence_number: SequenceNumber,
+        sequence_number: Option<SequenceNumber>,
         batch: MutableBatch,
         partition_key: PartitionKey,
         sequencer_id: SequencerId,
@@ -890,17 +892,22 @@ impl TableData {
             }
         };
 
-        // skip the write if it has already been persisted
-        if let Some(max) = partition_data.data.max_persisted_sequence_number {
-            if max >= sequence_number {
-                return Ok(false);
-            }
+        match sequence_number {
+            Some(sequence_number) => {
+                // skip the write if it has already been persisted
+                if let Some(max) = partition_data.data.max_persisted_sequence_number {
+                    if max >= sequence_number {
+                        return Ok(false);
+                    }
+                }
+            },
+            None => (),
         }
 
         let should_pause = lifecycle_handle.log_write(
             partition_data.id,
             sequencer_id,
-            sequence_number,
+            sequence_number.unwrap_or(SequenceNumber::new(0)),
             batch.size(),
         );
         partition_data.buffer_write(sequence_number, batch)?;
@@ -1068,9 +1075,10 @@ impl PartitionData {
     /// Write the given mb in the buffer
     pub(crate) fn buffer_write(
         &mut self,
-        sequencer_number: SequenceNumber,
+        sequencer_number: Option<SequenceNumber>,
         mb: MutableBatch,
     ) -> Result<()> {
+        let sequencer_number = sequencer_number.unwrap_or(SequenceNumber::new(0));
         match &mut self.data.buffer {
             Some(buf) => {
                 buf.max_sequence_number = sequencer_number.max(buf.max_sequence_number);

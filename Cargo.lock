@@ -2097,6 +2097,7 @@ dependencies = [
  "parquet_file",
  "predicate",
  "predicates",
+ "rand",
  "router",
  "rustyline",
  "schema",

@@ -6,8 +6,10 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 use itertools::Itertools;
+use rand::Rng;
 use snafu::{ResultExt, Snafu};
-use data_types::{DatabaseName, KafkaPartition, Namespace, PartitionTemplate, Sequence, SequenceNumber, TemplatePart};
+use tokio::time::sleep;
+use data_types::{DatabaseName, KafkaPartition, Namespace, PartitionTemplate, TemplatePart};
 use iox_query::exec::Executor;
 use mutable_batch_lp;
 use data_types::NamespaceSchema;
@@ -182,12 +184,12 @@ pub async fn command(config: Config) -> Result<()> {
     drop(repos);
 
     let lines_per_loop : i64 = 100000;
-    let mut sequence : i64 = 0;
+    let mut count : i64 = 0;
     loop {
-        if sequence % 100 == 0 {
-            println!("Finished {} lines", sequence*lines_per_loop)
+        if count % 100 == 0 {
+            println!("Finished {} lines", count*lines_per_loop)
         }
-        sequence += 1;
+        count += 1;
         let mut err = Ok(());
 
         let lp = lines.take(lines_per_loop as usize).filter_map(|x| match x {
@@ -211,8 +213,7 @@ pub async fn command(config: Config) -> Result<()> {
                 database_name.clone(),
                 partition_batches,
                 Some(partition_key),
-                DmlMeta::sequenced(
-                    Sequence::new(1, SequenceNumber::new(sequence)),
+                DmlMeta::timed(
                     ignored_ts,
                     None,
                     50,
@@ -221,9 +222,17 @@ pub async fn command(config: Config) -> Result<()> {
         }).collect();
 
         for write in &writes {
-            validate_or_insert_schema(write.tables(), &schema, &mut *catalog.repositories().await)
-                .await
-                .expect("Schema failed validation");
+            loop {
+                match validate_or_insert_schema(write.tables(), &schema, &mut *catalog.repositories().await)
+                    .await {
+                    Err(e) => {
+                        let seconds = rand::thread_rng().gen_range(0..20);
+                        println!("Retrying schema validation after {} seconds, error: {:?}", seconds, e);
+                        sleep(Duration::from_secs(seconds)).await;
+                    },
+                    Ok(_) => break,
+                }
+            }
         }
 
         for write in writes {
