@@ -158,7 +158,7 @@ pub async fn command(config: Config) -> Result<()> {
         executor.clone(),
         BackoffConfig::default(),
     ));
-    let schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
+    let mut schema = NamespaceSchema::new(namespace.id, kafka_topic.id, query_pool.id);
 
     let ignored_ts = Time::from_timestamp_millis(42);
 
@@ -230,7 +230,11 @@ pub async fn command(config: Config) -> Result<()> {
                         println!("Retrying schema validation after {} seconds, error: {:?}", seconds, e);
                         sleep(Duration::from_secs(seconds)).await;
                     },
-                    Ok(_) => break,
+                    Ok(None) => break,
+                    Ok(Some(s)) => {
+                        schema = s;
+                        break
+                    }
                 }
             }
         }
