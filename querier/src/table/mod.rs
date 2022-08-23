@@ -233,18 +233,23 @@ impl QuerierTable {
 
         // create parquet files
         let parquet_files: Vec<_> = futures::stream::iter(parquet_files.files.iter())
-            .filter_map(|cached_parquet_file| {
+            .filter_map(|cached_parquet_file| async move {
+                if let Some(r) = predicate.range {
+                    if cached_parquet_file.max_time.get() < r.start()
+                        || cached_parquet_file.min_time.get() >= r.end()
+                    {
+                        return None;
+                    }
+                }
                 let chunk_adapter = Arc::clone(&self.chunk_adapter);
                 let span = span_recorder.child_span("new_chunk");
-                async move {
-                    chunk_adapter
-                        .new_chunk(
-                            Arc::clone(&self.namespace_name),
-                            Arc::clone(cached_parquet_file),
-                            span,
-                        )
-                        .await
-                }
+                chunk_adapter
+                    .new_chunk(
+                        Arc::clone(&self.namespace_name),
+                        Arc::clone(cached_parquet_file),
+                        span,
+                    )
+                    .await
             })
             .collect()
             .await;
@@ -549,7 +554,7 @@ mod tests {
         // this contains all files except for:
         // - file111: marked for delete
         // - file221: wrong table
-        let pred = Predicate::new().with_range(0, 100);
+        let pred = Predicate::new().with_range(0, 101);
         let mut chunks = querier_table.chunks_with_predicate(&pred).await.unwrap();
         chunks.sort_by_key(|c| c.id());
         assert_eq!(chunks.len(), 6);

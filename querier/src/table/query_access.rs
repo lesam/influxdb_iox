@@ -55,7 +55,8 @@ impl TableProvider for QuerierTable {
 
         let predicate = filters
             .iter()
-            .fold(Predicate::new(), |b, expr| b.with_expr(expr.clone()));
+            .fold(Predicate::new(), |b, expr| b.with_expr(expr.clone()))
+            .with_timestamp_from_expr();
 
         let chunks = self
             .chunks(&predicate, ctx.child_span("querier table chunks"))

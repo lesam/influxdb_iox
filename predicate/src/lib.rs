@@ -13,13 +13,15 @@ pub mod delete_predicate;
 pub mod rewrite;
 pub mod rpc_predicate;
 
+use crate::Expr::BinaryExpr;
 use arrow::{
     array::{
         BooleanArray, Float64Array, Int64Array, StringArray, TimestampNanosecondArray, UInt64Array,
     },
     datatypes::SchemaRef,
 };
-use data_types::{InfluxDbType, TableSummary, TimestampRange};
+use data_types::{InfluxDbType, TableSummary, TimestampRange, MAX_NANO_TIME, MIN_NANO_TIME};
+use datafusion::common::ScalarValue;
 use datafusion::{
     error::DataFusionError,
     logical_expr::{binary_expr, utils::expr_to_columns},
@@ -31,6 +33,7 @@ use datafusion_util::{make_range_expr, nullable_schema};
 use observability_deps::tracing::debug;
 use rpc_predicate::VALUE_COLUMN_NAME;
 use schema::TIME_COLUMN_NAME;
+use std::cmp::{max, min};
 use std::{
     collections::{BTreeSet, HashSet},
     fmt,
@@ -237,6 +240,85 @@ impl Predicate {
             }
         });
 
+        self
+    }
+
+    /// Narrow time range from expressions, removing any expressions no longer needed
+    pub fn with_timestamp_from_expr(mut self) -> Self {
+        let mut start_time = if let Some(range) = self.range {
+            range.start()
+        } else {
+            MIN_NANO_TIME
+        };
+        let mut end_time = if let Some(range) = self.range {
+            range.end()
+        } else {
+            MAX_NANO_TIME + 1
+        };
+
+        self.exprs.retain(|e| {
+            // parse for 'parsed_col op parsed_time'
+            let parsed_col;
+            let parsed_op;
+            let parsed_time: i64;
+            match e {
+                BinaryExpr { left, op, right } => {
+                    let left: &Expr = left;
+                    let right: &Expr = right;
+                    match (&left, &right) {
+                        (
+                            &Expr::Column(col),
+                            &Expr::Literal(ScalarValue::TimestampNanosecond(Some(time), None)),
+                        ) => {
+                            parsed_col = col;
+                            parsed_op = *op;
+                            parsed_time = *time;
+                        }
+                        (
+                            &Expr::Literal(ScalarValue::TimestampNanosecond(Some(time), None)),
+                            &Expr::Column(col),
+                        ) => {
+                            parsed_col = col;
+                            parsed_op = match *op {
+                                Operator::Lt => Operator::Gt,
+                                Operator::Gt => Operator::Lt,
+                                Operator::LtEq => Operator::GtEq,
+                                Operator::GtEq => Operator::LtEq,
+                                _ => *op,
+                            };
+                            parsed_time = *time;
+                        }
+                        (_, _) => return true,
+                    }
+                }
+                _ => return true,
+            }
+            if parsed_col.relation.is_some() || parsed_col.name != TIME_COLUMN_NAME {
+                return true;
+            }
+            // process: "time" op parsed_time
+            match parsed_op {
+                Operator::Lt => end_time = min(end_time, parsed_time),
+                Operator::LtEq => end_time = min(end_time, parsed_time.saturating_add(1)),
+                Operator::Gt => start_time = max(start_time, parsed_time.saturating_add(1)),
+                Operator::GtEq => start_time = max(start_time, parsed_time),
+                Operator::Eq => {
+                    // both GtEq and LtEq behaviour
+                    start_time = max(start_time, parsed_time);
+                    end_time = min(end_time, parsed_time.saturating_add(1));
+                }
+                _ => return true,
+            };
+            // start/end time has been handled by range, so we don't need this predicate
+            false
+        });
+
+        let new_range = TimestampRange::new(start_time, end_time);
+        if new_range.contains_all() {
+            self.range = None
+        } else {
+            self.range = Some(new_range)
+        }
         self
     }
 
