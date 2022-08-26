@@ -605,7 +605,7 @@ mod tests {
             .unwrap_err();
         assert_eq!(
             err.to_string(),
-            "Cannot build plan: Arrow error: External error: Query would scan at least 300 bytes, more than configured maximum 299 bytes. Try adjusting your compactor settings or increasing the per query memory limit."
+            "Cannot build plan: External error: Chunk pruning failed: Query would scan at least 300 bytes, more than configured maximum 299 bytes. Try adjusting your compactor settings or increasing the per query memory limit."
         );
     }
 

@@ -649,7 +649,7 @@ mod tests {
         // this contains all files except for:
         // - file111: marked for delete
         // - file221: wrong table
-        let pred = Predicate::new().with_range(0, 100);
+        let pred = Predicate::new().with_range(0, 101);
         let mut chunks = querier_table.chunks_with_predicate(&pred).await.unwrap();
         chunks.sort_by_key(|c| c.id());
         assert_eq!(chunks.len(), 6);
