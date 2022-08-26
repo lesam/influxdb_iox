@@ -73,11 +73,7 @@ impl QueryDatabase for QuerierNamespace {
                     .any(|col| schema.find_index_of(col).is_some())
             })
         }
-
-        let pruner = table.chunk_pruner();
-        pruner
-            .prune_chunks(table_name, Arc::clone(table.schema()), chunks, predicate)
-            .map_err(|e| Box::new(e) as _)
+        Ok(chunks)
     }
 
     fn record_query(

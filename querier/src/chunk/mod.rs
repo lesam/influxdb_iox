@@ -563,9 +563,10 @@ pub mod tests {
     async fn test_new_rb_chunk() {
         maybe_start_logging();
         let test_data = TestData::new(QuerierChunkLoadSetting::ReadBufferOnly).await;
+        let namespace_schema = Arc::new(test_data.ns.schema().await);
 
         // create chunk
-        let chunk = test_data.chunk().await;
+        let chunk = test_data.chunk(namespace_schema.clone()).await;
 
         // check state
         assert_eq!(chunk.chunk_type(), "read_buffer");
@@ -593,7 +594,7 @@ pub mod tests {
         assert_eq!(table_summary_1, table_summary_2);
 
         // retrieving the chunk again should not require any catalog requests
-        test_data.chunk().await;
+        test_data.chunk(namespace_schema).await;
         let catalog_metrics2 = test_data.get_catalog_access_metrics();
         assert_eq!(catalog_metrics1, catalog_metrics2);
     }
@@ -602,9 +603,10 @@ pub mod tests {
     async fn test_new_parquet_chunk() {
         maybe_start_logging();
         let test_data = TestData::new(QuerierChunkLoadSetting::ParquetOnly).await;
+        let namespace_schema = Arc::new(test_data.ns.schema().await);
 
         // create chunk
-        let chunk = test_data.chunk().await;
+        let chunk = test_data.chunk(namespace_schema.clone()).await;
 
         // check state
         assert_eq!(chunk.chunk_type(), "parquet");
@@ -632,7 +634,7 @@ pub mod tests {
         assert_eq!(table_summary_1, table_summary_2);
 
         // retrieving the chunk again should not require any catalog requests
-        test_data.chunk().await;
+        test_data.chunk(namespace_schema).await;
         let catalog_metrics2 = test_data.get_catalog_access_metrics();
         assert_eq!(catalog_metrics1, catalog_metrics2);
     }
@@ -641,9 +643,10 @@ pub mod tests {
     async fn test_new_on_demand_chunk() {
         maybe_start_logging();
         let test_data = TestData::new(QuerierChunkLoadSetting::OnDemand).await;
+        let namespace_schema = Arc::new(test_data.ns.schema().await);
 
         // create chunk
-        let chunk = test_data.chunk().await;
+        let chunk = test_data.chunk(namespace_schema.clone()).await;
 
         // check state
         assert_eq!(chunk.chunk_type(), "parquet");
@@ -671,7 +674,7 @@ pub mod tests {
         assert_ne!(table_summary_1, table_summary_2);
 
         // retrieving the chunk again should not require any catalog requests
-        test_data.chunk().await;
+        test_data.chunk(namespace_schema).await;
         let catalog_metrics2 = test_data.get_catalog_access_metrics();
         assert_eq!(catalog_metrics1, catalog_metrics2);
     }
@@ -746,8 +749,7 @@ pub mod tests {
             }
         }
 
-        async fn chunk(&self) -> QuerierChunk {
-            let namespace_schema = Arc::new(self.ns.schema().await);
+        async fn chunk(&self, namespace_schema: Arc<NamespaceSchema>) -> QuerierChunk {
             let table_schema_catalog = namespace_schema.tables.get("table").expect("table exists");
             let table_schema: Schema = table_schema_catalog
                 .clone()

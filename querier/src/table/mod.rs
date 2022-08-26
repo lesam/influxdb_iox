@@ -1,14 +1,17 @@
 use self::query_access::QuerierTableChunkPruner;
 use self::state_reconciler::Reconciler;
+use crate::chunk::util::create_basic_summary;
+use crate::table::query_access::MetricPruningObserver;
 use crate::{
     chunk::ChunkAdapter,
     ingester::{self, IngesterPartition},
     IngesterConnection,
 };
-use data_types::{ColumnId, KafkaPartition, PartitionId, TableId};
+use data_types::{ColumnId, KafkaPartition, PartitionId, TableId, TimestampMinMax};
 use futures::{join, StreamExt};
-use iox_query::{exec::Executor, provider::ChunkPruner, QueryChunk};
-use observability_deps::tracing::debug;
+use iox_query::pruning::prune_summaries;
+use iox_query::{exec::Executor, provider, provider::ChunkPruner, QueryChunk};
+use observability_deps::tracing::{debug, trace};
 use predicate::Predicate;
 use schema::Schema;
 use sharder::JumpHash;
@@ -50,6 +53,9 @@ pub enum Error {
     StateFusion {
         source: state_reconciler::ReconcileError,
     },
+
+    #[snafu(display("Chunk pruning failed: {}", source))]
+    ChunkPruning { source: provider::Error },
 }
 
 pub type Result<T, E = Error> = std::result::Result<T, E>;
@@ -268,10 +274,48 @@ impl QuerierTable {
                     .clone()
                     .try_into()
                     .expect("Invalid table schema in catalog");
+
+                let basic_summaries: Vec<_> = parquet_files
+                    .files
+                    .iter()
+                    .map(|p| {
+                        Arc::new(create_basic_summary(
+                            p.row_count as u64,
+                            &table_schema,
+                            TimestampMinMax {
+                                min: p.min_time.get(),
+                                max: p.max_time.get(),
+                            },
+                        ))
+                    })
+                    .map(Some)
+                    .collect();
                 let table_schema = &Arc::new(table_schema);
 
-                futures::stream::iter(parquet_files.files.iter())
-                    .filter_map(|cached_parquet_file| async move {
+                // Prune on the most basic summary data (timestamps and column names) before trying to fully load the chunks
+                let keeps =
+                    match prune_summaries(Arc::clone(table_schema), &basic_summaries, predicate) {
+                        Ok(keeps) => keeps,
+                        Err(reason) => {
+                            // Ignore pruning failures here - the chunk pruner should have already logged them.
+                            // Just skip pruning and gather all the metadata. We have another chance to prune them
+                            // once all the metadata is available
+                            debug!(?reason, "Could not prune before metadata fetch");
+                            vec![true; basic_summaries.len()]
+                        }
+                    };
+
+                let early_pruning_observer =
+                    &MetricPruningObserver::new(Arc::clone(&self.prune_metrics));
+                futures::stream::iter(parquet_files.files.iter().zip(keeps))
+                    .filter_map(|(cached_parquet_file, keep)| async move {
+                        if !keep {
+                            early_pruning_observer.was_pruned_early(
+                                cached_parquet_file.row_count as u64,
+                                cached_parquet_file.file_size_bytes as u64,
+                            );
+                            return None;
+                        }
                         let chunk_adapter = Arc::clone(&self.chunk_adapter);
                         let span = span_recorder.child_span("new_chunk");
                         chunk_adapter
@@ -290,7 +334,7 @@ impl QuerierTable {
             (_, _) => Vec::new(),
         };
 
-        let result = self
+        let chunks = self
             .reconciler
             .reconcile(
                 partitions,
@@ -299,9 +343,21 @@ impl QuerierTable {
                 span_recorder.child_span("reconcile"),
             )
             .await
-            .context(StateFusionSnafu);
-        debug!("Fetched chunks");
-        result
+            .context(StateFusionSnafu)?;
+        trace!("Fetched chunks");
+
+        let num_initial_chunks = chunks.len();
+        let chunks = self
+            .chunk_pruner()
+            .prune_chunks(
+                self.table_name(),
+                Arc::clone(&self.schema),
+                chunks,
+                &predicate,
+            )
+            .context(ChunkPruningSnafu)?;
+        debug!(%predicate, num_initial_chunks, num_final_chunks=chunks.len(), "pruned with pushed down predicates");
+        Ok(chunks)
     }
 
     /// Get a chunk pruner that can be used to prune chunks retrieved via [`chunks`](Self::chunks)
