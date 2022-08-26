@@ -5,7 +5,7 @@ use crate::{
     ingester::{self, IngesterPartition},
     IngesterConnection,
 };
-use data_types::{KafkaPartition, PartitionId, TableId};
+use data_types::{ColumnId, KafkaPartition, PartitionId, TableId};
 use futures::{join, StreamExt};
 use iox_query::{exec::Executor, provider::ChunkPruner, QueryChunk};
 use observability_deps::tracing::debug;
@@ -13,6 +13,7 @@ use predicate::Predicate;
 use schema::Schema;
 use sharder::JumpHash;
 use snafu::{ResultExt, Snafu};
+use std::collections::HashSet;
 use std::{
     collections::{hash_map::Entry, HashMap},
     sync::Arc,
@@ -231,25 +232,66 @@ impl QuerierTable {
                 .get(self.id(), span_recorder.child_span("cache GET tombstone"))
         );
 
-        // create parquet files
-        let parquet_files: Vec<_> = futures::stream::iter(parquet_files.files.iter())
-            .filter_map(|cached_parquet_file| {
-                let chunk_adapter = Arc::clone(&self.chunk_adapter);
-                let span = span_recorder.child_span("new_chunk");
-                async move {
-                    chunk_adapter
-                        .new_chunk(
-                            Arc::clone(&self.namespace_name),
-                            Arc::clone(cached_parquet_file),
-                            span,
-                        )
-                        .await
-                }
-            })
-            .collect()
+        let columns: HashSet<ColumnId> = parquet_files
+            .files
+            .iter()
+            .flat_map(|cached_file| cached_file.column_set.iter().copied())
+            .collect();
+        let namespace_schema = self
+            .chunk_adapter
+            .catalog_cache()
+            .namespace()
+            .schema(
+                Arc::clone(&self.namespace_name),
+                &[(&self.table_name, &columns)],
+                span_recorder.child_span("cache GET namespace schema"),
+            )
             .await;
+        let namespace_schema = namespace_schema.as_ref();
+        let table_schema_catalog = match &namespace_schema {
+            Some(n) => n.tables.get(self.table_name.as_ref()),
+            None => None,
+        };
 
-        self.reconciler
+        // create parquet files
+        let parquet_files: Vec<_> = match (namespace_schema, table_schema_catalog) {
+            (Some(namespace_schema), Some(table_schema_catalog)) => {
+                let column_id_map = table_schema_catalog.column_id_map();
+                for col in &columns {
+                    assert!(
+                        column_id_map.contains_key(col),
+                        "Column {} occurs in parquet file but is not part of the table schema",
+                        col.get()
+                    );
+                }
+                let table_schema: Schema = table_schema_catalog
+                    .clone()
+                    .try_into()
+                    .expect("Invalid table schema in catalog");
+                let table_schema = &Arc::new(table_schema);
+
+                futures::stream::iter(parquet_files.files.iter())
+                    .filter_map(|cached_parquet_file| async move {
+                        let chunk_adapter = Arc::clone(&self.chunk_adapter);
+                        let span = span_recorder.child_span("new_chunk");
+                        chunk_adapter
+                            .new_chunk(
+                                Arc::clone(namespace_schema),
+                                Arc::clone(table_schema),
+                                Arc::clone(self.table_name()),
+                                Arc::clone(cached_parquet_file),
+                                span,
+                            )
+                            .await
+                    })
+                    .collect()
+                    .await
+            }
+            (_, _) => Vec::new(),
+        };
+
+        let result = self
+            .reconciler
             .reconcile(
                 partitions,
                 tombstones.to_vec(),
@@ -257,7 +299,9 @@ impl QuerierTable {
                 span_recorder.child_span("reconcile"),
             )
             .await
-            .context(StateFusionSnafu)
+            .context(StateFusionSnafu);
+        debug!("Fetched chunks");
+        result
     }
 
     /// Get a chunk pruner that can be used to prune chunks retrieved via [`chunks`](Self::chunks)
