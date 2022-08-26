@@ -353,7 +353,7 @@ impl QuerierTable {
                 self.table_name(),
                 Arc::clone(&self.schema),
                 chunks,
-                &predicate,
+                predicate,
             )
             .context(ChunkPruningSnafu)?;
         debug!(%predicate, num_initial_chunks, num_final_chunks=chunks.len(), "pruned with pushed down predicates");

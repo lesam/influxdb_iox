@@ -566,7 +566,7 @@ pub mod tests {
         let namespace_schema = Arc::new(test_data.ns.schema().await);
 
         // create chunk
-        let chunk = test_data.chunk(namespace_schema.clone()).await;
+        let chunk = test_data.chunk(Arc::clone(&namespace_schema)).await;
 
         // check state
         assert_eq!(chunk.chunk_type(), "read_buffer");
@@ -606,7 +606,7 @@ pub mod tests {
         let namespace_schema = Arc::new(test_data.ns.schema().await);
 
         // create chunk
-        let chunk = test_data.chunk(namespace_schema.clone()).await;
+        let chunk = test_data.chunk(Arc::clone(&namespace_schema)).await;
 
         // check state
         assert_eq!(chunk.chunk_type(), "parquet");
@@ -646,7 +646,7 @@ pub mod tests {
         let namespace_schema = Arc::new(test_data.ns.schema().await);
 
         // create chunk
-        let chunk = test_data.chunk(namespace_schema.clone()).await;
+        let chunk = test_data.chunk(Arc::clone(&namespace_schema)).await;
 
         // check state
         assert_eq!(chunk.chunk_type(), "parquet");
@@ -759,7 +759,7 @@ pub mod tests {
                 .new_chunk(
                     Arc::clone(&namespace_schema),
                     Arc::new(table_schema),
-                    Arc::from("table".clone()),
+                    Arc::from("table"),
                     Arc::clone(&self.parquet_file),
                     None,
                 )

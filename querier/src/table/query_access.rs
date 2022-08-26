@@ -148,7 +148,7 @@ pub(crate) struct MetricPruningObserver {
 
 impl MetricPruningObserver {
     pub(crate) fn new(metrics: Arc<PruneMetrics>) -> Self {
-        return Self { metrics };
+        Self { metrics }
     }
 
     /// Called when pruning a chunk before fully creating the chunk structure

@@ -79,8 +79,7 @@ pub fn prune_chunks(
     let num_chunks = chunks.len();
     debug!(num_chunks, %predicate, "Pruning chunks");
     let summaries: Vec<_> = chunks.iter().map(|c| c.summary()).collect();
-
-    return prune_summaries(table_schema, &summaries, predicate);
+    prune_summaries(table_schema, &summaries, predicate)
 }
 
 /// Given a Vec of pruning summaries, return a Vec<bool>
