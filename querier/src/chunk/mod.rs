@@ -487,9 +487,7 @@ impl ChunkAdapter {
                     Some(col) => col.id,
                     None => return None,
                 };
-                // TODO: for large column sets constructing a hash map would be better,
-                // but for small ones the allocation overhead kills us
-                if parquet_file.column_set.contains(&column_id) {
+                if parquet_file_col_ids.contains(&column_id) {
                     Some(name)
                 } else {
                     None

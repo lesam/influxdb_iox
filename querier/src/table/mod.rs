@@ -617,9 +617,16 @@ mod tests {
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table1 foo=10 100")
             .with_max_seq(2)
+            .with_min_time(99)
+            .with_max_time(99);
+        let file122 = partition12.create_parquet_file(builder).await;
+
+        let builder = TestParquetFileBuilder::default()
+            .with_line_protocol("table1 foo=10 100")
+            .with_max_seq(2)
             .with_min_time(100)
             .with_max_time(100);
-        let file122 = partition12.create_parquet_file(builder).await;
+        let _file123 = partition12.create_parquet_file(builder).await;
 
         let builder = TestParquetFileBuilder::default()
             .with_line_protocol("table2 foo=6 66")
@@ -649,7 +656,8 @@ mod tests {
         // this contains all files except for:
         // - file111: marked for delete
         // - file221: wrong table
-        let pred = Predicate::new().with_range(0, 101);
+        // - file123: filtered by predicate
+        let pred = Predicate::new().with_range(0, 100);
         let mut chunks = querier_table.chunks_with_predicate(&pred).await.unwrap();
         chunks.sort_by_key(|c| c.id());
         assert_eq!(chunks.len(), 6);

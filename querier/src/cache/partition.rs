@@ -119,7 +119,7 @@ impl PartitionCache {
     pub async fn sort_key(
         &self,
         partition_id: PartitionId,
-        should_cover: &Vec<&str>,
+        should_cover: &[&str],
         span: Option<Span>,
     ) -> Arc<Option<SortKey>> {
         self.remove_if_handle
@@ -328,7 +328,7 @@ mod tests {
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 1);
 
         // but requesting something will expire
-        let sort_key = cache.sort_key(p_id, &vec!["foo"], None).await;
+        let sort_key = cache.sort_key(p_id, &["foo"], None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 2);
 
@@ -339,7 +339,7 @@ mod tests {
 
         // expire & fetch
         let p_sort_key = p.partition.sort_key();
-        let sort_key = cache.sort_key(p_id, &vec!["foo"], None).await;
+        let sort_key = cache.sort_key(p_id, &["foo"], None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 3);
 
@@ -351,7 +351,7 @@ mod tests {
         }
 
         // unknown columns expire
-        let sort_key = cache.sort_key(p_id, &vec!["foo", "x"], None).await;
+        let sort_key = cache.sort_key(p_id, &["foo", "x"], None).await;
         assert_eq!(sort_key.as_ref(), &p_sort_key);
         assert_histogram_metric_count(&catalog.metric_registry, "partition_get_by_id", 4);
     }
