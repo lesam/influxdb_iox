@@ -4,6 +4,7 @@ use cache_system::backend::policy::lru::ResourcePool;
 use iox_catalog::interface::Catalog;
 use iox_time::TimeProvider;
 use std::sync::Arc;
+use tokio::runtime::Handle;
 
 use self::{
     namespace::NamespaceCache, parquet_file::ParquetFileCache, partition::PartitionCache,
@@ -65,6 +66,7 @@ impl CatalogCache {
         metric_registry: Arc<metric::Registry>,
         ram_pool_metadata_bytes: usize,
         ram_pool_data_bytes: usize,
+        handle: &Handle,
     ) -> Self {
         Self::new_internal(
             catalog,
@@ -72,6 +74,7 @@ impl CatalogCache {
             metric_registry,
             ram_pool_metadata_bytes,
             ram_pool_data_bytes,
+            handle,
             false,
         )
     }
@@ -83,6 +86,7 @@ impl CatalogCache {
         catalog: Arc<dyn Catalog>,
         time_provider: Arc<dyn TimeProvider>,
         metric_registry: Arc<metric::Registry>,
+        handle: &Handle,
     ) -> Self {
         Self::new_internal(
             catalog,
@@ -90,6 +94,7 @@ impl CatalogCache {
             metric_registry,
             usize::MAX,
             usize::MAX,
+            handle,
             true,
         )
     }
@@ -100,6 +105,7 @@ impl CatalogCache {
         metric_registry: Arc<metric::Registry>,
         ram_pool_metadata_bytes: usize,
         ram_pool_data_bytes: usize,
+        handle: &Handle,
         testing: bool,
     ) -> Self {
         let backoff_config = BackoffConfig::default();
@@ -131,6 +137,7 @@ impl CatalogCache {
             Arc::clone(&time_provider),
             &metric_registry,
             Arc::clone(&ram_pool_metadata),
+            handle,
             testing,
         );
         let processed_tombstones_cache = ProcessedTombstonesCache::new(
